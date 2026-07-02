@@ -92,6 +92,7 @@ export default function RegisterPage() {
         (window as any).google.accounts.id.initialize({
           client_id: clientId,
           callback: handleGoogleCallback,
+          use_fedcm_for_prompt: false,
         });
         
         const btnElem = document.getElementById("google-signin-btn");
