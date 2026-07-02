@@ -400,6 +400,15 @@ export const api = {
     return res.json();
   },
 
+  async getMetaConfig(): Promise<{ meta_app_id: string }> {
+    const res = await fetch(`${BACKEND_URL}/api/integrations/whatsapp/meta/config`, {
+      headers: getHeaders(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch Meta configuration.");
+    return res.json();
+  },
+
+
   async getInstagramIntegrationStatus(): Promise<{ connected: boolean; provider?: string; page_id?: string; username?: string; verify_token?: string }> {
     const res = await fetch(`${BACKEND_URL}/api/integrations/instagram/status`, {
       headers: getHeaders(),

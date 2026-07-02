@@ -101,6 +101,61 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
     }
   };
 
+  const loadAndInitFBSDK = async (): Promise<any> => {
+    if ((window as any).FB) {
+      return (window as any).FB;
+    }
+
+    // Fetch Meta App ID from the backend config endpoint
+    const config = await api.getMetaConfig();
+    if (!config.meta_app_id) {
+      throw new Error("Meta App ID is not configured on the backend. Please set META_APP_ID in your backend settings.");
+    }
+
+    return new Promise((resolve, reject) => {
+      // Setup async initialization callback
+      (window as any).fbAsyncInit = function() {
+        (window as any).FB.init({
+          appId            : config.meta_app_id,
+          autoLogAppEvents : true,
+          xfbml            : true,
+          version          : 'v25.0',
+          cookie           : true
+        });
+        resolve((window as any).FB);
+      };
+
+      // Load SDK Script Tag
+      const id = "facebook-jssdk";
+      if (document.getElementById(id)) {
+        const checkFB = setInterval(() => {
+          if ((window as any).FB) {
+            clearInterval(checkFB);
+            (window as any).fbAsyncInit();
+          }
+        }, 100);
+        return;
+      }
+
+      const fjs = document.getElementsByTagName("script")[0];
+      const js = document.createElement("script") as HTMLScriptElement;
+      js.id = id;
+      js.src = "https://connect.facebook.net/en_US/sdk.js";
+      js.async = true;
+      js.defer = true;
+      js.crossOrigin = "anonymous";
+      js.onerror = () => {
+        reject(new Error("Failed to load Facebook SDK. Check if an adblocker is blocking connect.facebook.net."));
+      };
+
+      if (fjs && fjs.parentNode) {
+        fjs.parentNode.insertBefore(js, fjs);
+      } else {
+        document.head.appendChild(js);
+      }
+    });
+  };
+
   const handleWAConnect = async () => {
     setConnectingWA(true);
     setWaError(null);
@@ -108,15 +163,20 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
       if (waDevMode) {
         await api.saveMetaAuthCode("mock_wa_code_" + Math.random().toString(36).substring(7));
         await fetchWAStatus();
+        setConnectingWA(false);
       } else {
-        if (!(window as any).FB) {
-          throw new Error("Facebook SDK is not initialized. Please verify META_APP_ID settings.");
+        const FBInstance = await loadAndInitFBSDK();
+        if (!FBInstance) {
+          throw new Error("Could not load or initialize Facebook SDK.");
         }
-        (window as any).FB.login(
+
+        FBInstance.login(
           async (response: any) => {
             if (response.authResponse && response.authResponse.code) {
               try {
-                await api.saveMetaAuthCode(response.authResponse.code);
+                // Determine the correct redirect URI for the exchange (where the popup was initialized)
+                const redirectUri = window.location.origin;
+                await api.saveMetaAuthCode(response.authResponse.code, redirectUri);
                 await fetchWAStatus();
               } catch (ex: any) {
                 setWaError(ex.message || "Failed to exchange auth credentials with the server.");
@@ -128,17 +188,20 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
           },
           {
             scope: "whatsapp_business_management,whatsapp_business_messaging",
-            extras: { feature: "whatsapp_embedded_signup" }
+            response_type: "code",
+            override_default_response_type: true,
+            extras: {
+              feature: "whatsapp_embedded_signup"
+            }
           }
         );
-        return; // wait for login callback
       }
     } catch (err: any) {
       setWaError(err.message || "WhatsApp connection failed.");
-    } finally {
       setConnectingWA(false);
     }
   };
+
 
   const handleWADisconnect = async () => {
     if (!confirm("Are you sure you want to disconnect WhatsApp? Your chatbot will stop responding to WhatsApp customers.")) return;

@@ -92,7 +92,7 @@ async def exchange_meta_auth_code(
     try:
         # Exchanging short-lived user/code for access token
         async with httpx.AsyncClient() as client:
-            token_url = "https://graph.facebook.com/v20.0/oauth/access_token"
+            token_url = "https://graph.facebook.com/v25.0/oauth/access_token"
             params = {
                 "client_id": settings.META_APP_ID,
                 "client_secret": settings.META_APP_SECRET,
@@ -113,7 +113,7 @@ async def exchange_meta_auth_code(
             
             # Fetch WABA details and Phone Numbers linked to the system user
             # In a production Embedded Signup flow, you query /me/accounts or /debug_token to resolve the user's accounts
-            accounts_url = f"https://graph.facebook.com/v20.0/me/accounts?access_token={user_access_token}"
+            accounts_url = f"https://graph.facebook.com/v25.0/me/accounts?access_token={user_access_token}"
             accounts_response = await client.get(accounts_url)
             
             # If standard oauth user token, fetch WhatsApp accounts
@@ -191,3 +191,15 @@ def get_meta_status(
         )
         
     return MetaStatusResponse(connected=False)
+
+@router.get("/meta/config")
+def get_meta_config(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Returns the public Meta App configuration needed for the JavaScript SDK.
+    """
+    return {
+        "meta_app_id": settings.META_APP_ID
+    }
+
