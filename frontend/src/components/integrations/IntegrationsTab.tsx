@@ -171,20 +171,22 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
         }
 
         FBInstance.login(
-          async (response: any) => {
-            if (response.authResponse && response.authResponse.code) {
-              try {
-                // Determine the correct redirect URI for the exchange (where the popup was initialized)
-                const redirectUri = window.location.origin;
-                await api.saveMetaAuthCode(response.authResponse.code, redirectUri);
-                await fetchWAStatus();
-              } catch (ex: any) {
-                setWaError(ex.message || "Failed to exchange auth credentials with the server.");
+          (response: any) => {
+            (async () => {
+              if (response.authResponse && response.authResponse.code) {
+                try {
+                  // Determine the correct redirect URI for the exchange (where the popup was initialized)
+                  const redirectUri = window.location.origin;
+                  await api.saveMetaAuthCode(response.authResponse.code, redirectUri);
+                  await fetchWAStatus();
+                } catch (ex: any) {
+                  setWaError(ex.message || "Failed to exchange auth credentials with the server.");
+                }
+              } else {
+                setWaError("Meta registration login was cancelled or failed to verify.");
               }
-            } else {
-              setWaError("Meta registration login was cancelled or failed to verify.");
-            }
-            setConnectingWA(false);
+              setConnectingWA(false);
+            })();
           },
           {
             scope: "whatsapp_business_management,whatsapp_business_messaging",
