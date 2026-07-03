@@ -46,6 +46,16 @@ export default function ChatsTab({
   
   const threadEndRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (threadEndRef.current && threadEndRef.current.parentElement) {
+      const container = threadEndRef.current.parentElement;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: "smooth"
+      });
+    }
+  }, [selectedChatId, chats]);
+
   if (!loading && chats.length === 0) {
     return (
       <div className="space-y-4 h-[calc(100vh-140px)] flex flex-col overflow-hidden text-left pb-4">
@@ -77,16 +87,6 @@ export default function ChatsTab({
       </div>
     );
   }
-
-  useEffect(() => {
-    if (threadEndRef.current && threadEndRef.current.parentElement) {
-      const container = threadEndRef.current.parentElement;
-      container.scrollTo({
-        top: container.scrollHeight,
-        behavior: "smooth"
-      });
-    }
-  }, [selectedChatId, chats]);
 
   const activeChat = chats.find(c => c.id === selectedChatId);
   const isActiveInstagram = activeChat?.channel === "instagram";
