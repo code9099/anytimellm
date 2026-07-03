@@ -123,7 +123,12 @@ def get_subscription_status(
     # Calculate remaining trial days
     trial_days_left = 0
     if sub.plan_type == "TRIAL" and sub.trial_end_date:
-        delta = (sub.trial_end_date - datetime.utcnow()).days
+        trial_end = sub.trial_end_date
+        now = datetime.utcnow()
+        if trial_end.tzinfo:
+            from datetime import timezone
+            now = datetime.now(timezone.utc).astimezone(trial_end.tzinfo)
+        delta = (trial_end - now).days
         trial_days_left = max(0, delta)
         
     return {
