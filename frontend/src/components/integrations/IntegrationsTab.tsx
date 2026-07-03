@@ -25,6 +25,7 @@ const Instagram = ({ className }: { className?: string }) => (
 interface IntegrationsTabProps {
   activeBusiness: Business;
   copyToClipboard: (text: string) => void;
+  onUpdateBusiness?: (biz: Business) => void;
 }
 
 interface ChannelStatus {
@@ -37,10 +38,20 @@ interface ChannelStatus {
   username?: string;
 }
 
-export default function IntegrationsTab({ activeBusiness, copyToClipboard }: IntegrationsTabProps) {
+export default function IntegrationsTab({ activeBusiness, copyToClipboard, onUpdateBusiness }: IntegrationsTabProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // States
+  // States for Business Profile update
+  const [businessName, setBusinessName] = useState(activeBusiness.name);
+  const [updatingName, setUpdatingName] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+
+  // Sync prop changes
+  useEffect(() => {
+    setBusinessName(activeBusiness.name);
+  }, [activeBusiness]);
+
   const [loadingWA, setLoadingWA] = useState(true);
   const [waStatus, setWaStatus] = useState<ChannelStatus | null>(null);
   const [waError, setWaError] = useState<string | null>(null);
@@ -259,6 +270,25 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
       setLoadingInsta(false);
     }
   };
+  const handleUpdateBusinessName = async () => {
+    setUpdatingName(true);
+    setUpdateError(null);
+    setUpdateSuccess(false);
+    try {
+      const updatedBiz = await api.updateBusinessSettings(activeBusiness.id, {
+        name: businessName.trim()
+      });
+      setUpdateSuccess(true);
+      if (onUpdateBusiness) {
+        onUpdateBusiness(updatedBiz);
+      }
+    } catch (err: any) {
+      setUpdateError(err.message || "Failed to update business name.");
+    } finally {
+      setUpdatingName(false);
+    }
+  };
+
 
   const copyUrl = (channel: string, path: string) => {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "http://localhost:8000";
@@ -287,6 +317,58 @@ export default function IntegrationsTab({ activeBusiness, copyToClipboard }: Int
 
       <div ref={containerRef} className="space-y-8">
         
+        {/* ==================== WORKSPACE PROFILE SETTINGS ==================== */}
+        <div className="space-y-4 bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-slate-600 font-bold">domain</span>
+            <h2 className="font-display text-lg font-bold text-slate-700 uppercase tracking-wide">Workspace Profile</h2>
+          </div>
+          
+          <div className="max-w-md space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Business / Organization Name
+              </label>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Enter business name"
+                  className="w-full bg-slate-50 border border-slate-200 font-body text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/25 focus:border-violet-500 transition-all duration-300 font-semibold text-slate-800"
+                />
+                <button
+                  onClick={handleUpdateBusinessName}
+                  disabled={updatingName || !businessName.trim() || businessName.trim() === activeBusiness.name}
+                  className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-body text-xs tracking-wider uppercase flex items-center justify-center gap-1.5 transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer font-bold rounded-xl shadow-sm shrink-0"
+                >
+                  {updatingName ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving
+                    </>
+                  ) : (
+                    "Save"
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {updateSuccess && (
+              <div className="text-emerald-600 text-xs font-semibold flex items-center gap-1.5 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4" />
+                Business name updated successfully!
+              </div>
+            )}
+            {updateError && (
+              <div className="text-red-600 text-xs font-semibold flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm">error</span>
+                {updateError}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* ==================== CHANNEL 1: WHATSAPP ==================== */}
         <div className="space-y-4">
           <div className="flex items-center gap-2">

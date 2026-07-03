@@ -184,6 +184,11 @@ def update_business_settings(
     
     try:
         # Handle direct business field updates
+        if "name" in payload:
+            name_val = payload.pop("name")
+            if not name_val or not name_val.strip():
+                raise ValueError("Business name cannot be empty.")
+            biz.name = name_val.strip()
         if "onboarding_status" in payload:
             biz.onboarding_status = payload.pop("onboarding_status")
         if "business_type" in payload:
@@ -201,6 +206,9 @@ def update_business_settings(
         db.commit()
         db.refresh(biz)
         return biz
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         db.rollback()
         logger.error(f"Error updating settings: {e}")

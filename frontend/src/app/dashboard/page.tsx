@@ -633,6 +633,7 @@ export default function Dashboard() {
           <IntegrationsTab
             activeBusiness={activeBusiness}
             copyToClipboard={copyToClipboard}
+            onUpdateBusiness={(biz) => setActiveBusiness(biz)}
           />
         )}
         {tab === "orders" && (
