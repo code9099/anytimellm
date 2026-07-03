@@ -69,13 +69,15 @@ async def handle_incoming_unified_message(
     try:
         body_bytes = await request.body()
         
-        signature_header = request.headers.get("x-hub-signature-256")
-        if not signature_header:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature header.")
-            
         app_secret = settings.META_APP_SECRET
-        if not verify_meta_signature(body_bytes, signature_header, app_secret):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request signature.")
+        if app_secret:
+            signature_header = request.headers.get("x-hub-signature-256")
+            if not signature_header:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature header.")
+            if not verify_meta_signature(body_bytes, signature_header, app_secret):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request signature.")
+        else:
+            logger.warning("META_APP_SECRET is not configured. Skipping signature verification for incoming unified webhook.")
             
         body_str = body_bytes.decode("utf-8")
         print("\n==================================================")
@@ -245,13 +247,15 @@ async def handle_incoming_whatsapp_message(
 
         body_bytes = await request.body()
         
-        signature_header = request.headers.get("x-hub-signature-256")
-        if not signature_header:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature header.")
-            
         app_secret = biz.api_settings.get("meta_app_secret") or settings.META_APP_SECRET
-        if not verify_meta_signature(body_bytes, signature_header, app_secret):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request signature.")
+        if app_secret:
+            signature_header = request.headers.get("x-hub-signature-256")
+            if not signature_header:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing signature header.")
+            if not verify_meta_signature(body_bytes, signature_header, app_secret):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid request signature.")
+        else:
+            logger.warning("Meta App Secret is not configured. Skipping signature verification for incoming business webhook.")
 
         body_str = body_bytes.decode("utf-8")
         print("\n==================================================")
