@@ -10,11 +10,14 @@ import {
   Phone,
   AlertCircle,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  X
 } from "lucide-react";
+import { api } from "@/lib/api";
 import type { Conversation } from "@/lib/api";
 
 interface ChatsTabProps {
+  businessId: string;
   chats: Conversation[];
   loading: boolean;
   onRefresh: () => void;
@@ -28,6 +31,7 @@ interface ChatsTabProps {
 }
 
 export default function ChatsTab({
+  businessId,
   chats,
   loading,
   onRefresh,
@@ -43,6 +47,14 @@ export default function ChatsTab({
   const [searchQuery, setSearchQuery] = useState("");
   const [replyText, setReplyText] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+
+  // States for initiating a new chat
+  const [showInitiateModal, setShowInitiateModal] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState("");
+  const [newChatName, setNewChatName] = useState("");
+  const [newChatMessage, setNewChatMessage] = useState("");
+  const [initiatingChat, setInitiatingChat] = useState(false);
+  const [initiateError, setInitiateError] = useState<string | null>(null);
   
   const threadEndRef = useRef<HTMLDivElement>(null);
 
@@ -56,35 +68,177 @@ export default function ChatsTab({
     }
   }, [selectedChatId, chats]);
 
-  if (!loading && chats.length === 0) {
+  const handleInitiateChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChatPhone.trim() || !newChatMessage.trim()) return;
+
+    setInitiatingChat(true);
+    setInitiateError(null);
+    try {
+      const newConv = await api.initiateChat(
+        businessId,
+        newChatPhone.trim(),
+        newChatMessage.trim(),
+        newChatName.trim() || undefined
+      );
+      
+      // Reset inputs & close modal
+      setNewChatPhone("");
+      setNewChatName("");
+      setNewChatMessage("");
+      setShowInitiateModal(false);
+      
+      // Auto-select the newly created chat conversation & refresh parent feed list
+      setSelectedChatId(newConv.id);
+      onRefresh();
+    } catch (err: any) {
+      setInitiateError(err.message || "Failed to initiate new conversation.");
+    } finally {
+      setInitiatingChat(false);
+    }
+  };
+
+  const renderInitiateModal = () => {
+    if (!showInitiateModal) return null;
     return (
-      <div className="space-y-4 h-[calc(100vh-140px)] flex flex-col overflow-hidden text-left pb-4">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 shrink-0">
-          <div>
-            <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
-              Live Chats
-            </h1>
-            <p className="font-body text-sm text-slate-500 mt-1">
-              Monitor and override the Business Brain.
-            </p>
-          </div>
-        </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white border border-slate-200 rounded-xl shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 border border-slate-100">
-            <MessageSquare className="w-6 h-6 text-slate-400" />
-          </div>
-          <h3 className="font-semibold text-slate-800 text-lg">No conversations resolved yet</h3>
-          <p className="text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
-            Link Meta channels in settings to receive customer inquiries. Once connected, customer conversations will populate here.
-          </p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 relative">
           <button
-            onClick={() => onTabChange?.("integrations")}
-            className="mt-6 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+            type="button"
+            onClick={() => setShowInitiateModal(false)}
+            className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 transition-colors"
           >
-            Connect Channels
+            <X className="w-5 h-5" />
           </button>
+
+          <h3 className="font-display text-lg font-bold text-slate-900 mb-1">
+            Start a New Conversation
+          </h3>
+          <p className="font-body text-xs text-slate-500 mb-6">
+            Initiate contact with a customer using Meta Cloud API. If this is a new number, ensure you have whitelisted it or send an approved template.
+          </p>
+
+          <form onSubmit={handleInitiateChat} className="space-y-4">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                Customer Phone Number
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 919315549695"
+                value={newChatPhone}
+                onChange={(e) => setNewChatPhone(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 font-body text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500 transition-all duration-300 font-semibold text-slate-800"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                Customer Name (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. John Doe"
+                value={newChatName}
+                onChange={(e) => setNewChatName(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 font-body text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500 transition-all duration-300 font-semibold text-slate-800"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-1.5">
+                Initial Message
+              </label>
+              <textarea
+                placeholder="Type your first message here..."
+                value={newChatMessage}
+                onChange={(e) => setNewChatMessage(e.target.value)}
+                rows={3}
+                className="w-full bg-slate-50 border border-slate-200 font-body text-sm px-4 py-2.5 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/25 focus:border-purple-500 transition-all duration-300 font-semibold text-slate-800 resize-none"
+                required
+              />
+            </div>
+
+            {initiateError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-650 font-semibold flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{initiateError}</span>
+              </div>
+            )}
+
+            <div className="flex gap-3 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setShowInitiateModal(false)}
+                className="px-4 py-2 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 transition-colors text-sm cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={initiatingChat || !newChatPhone.trim() || !newChatMessage.trim()}
+                className="px-5 py-2 bg-slate-900 text-white font-semibold rounded-xl hover:bg-slate-800 transition-colors disabled:opacity-40 text-sm flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                {initiatingChat ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    Initiate Chat
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
+    );
+  };
+
+  if (!loading && chats.length === 0) {
+    return (
+      <>
+        <div className="space-y-4 h-[calc(100vh-140px)] flex flex-col overflow-hidden text-left pb-4">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4 shrink-0">
+            <div>
+              <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">
+                Live Chats
+              </h1>
+              <p className="font-body text-sm text-slate-500 mt-1">
+                Monitor and override the Business Brain.
+              </p>
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-white border border-slate-200 rounded-xl shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mb-4 border border-slate-100">
+              <MessageSquare className="w-6 h-6 text-slate-400" />
+            </div>
+            <h3 className="font-semibold text-slate-800 text-lg">No conversations resolved yet</h3>
+            <p className="text-sm text-slate-500 mt-2 max-w-md leading-relaxed">
+              Link Meta channels in settings to receive customer inquiries. Once connected, customer conversations will populate here.
+            </p>
+            <div className="flex items-center gap-3 mt-6">
+              <button
+                onClick={() => onTabChange?.("integrations")}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              >
+                Connect Channels
+              </button>
+              <button
+                onClick={() => setShowInitiateModal(true)}
+                className="px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              >
+                Start New Chat
+              </button>
+            </div>
+          </div>
+        </div>
+        {renderInitiateModal()}
+      </>
     );
   }
 
@@ -112,6 +266,9 @@ export default function ChatsTab({
       setSendingReply(false);
     }
   };
+
+
+
 
   const getRelativeTime = (timeStr: string) => {
     try {
@@ -182,18 +339,28 @@ export default function ChatsTab({
           </p>
         </div>
 
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all duration-200 shadow-sm"
-        >
-          {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <RefreshCw className="w-4 h-4" />
-          )}
-          Refresh
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowInitiateModal(true)}
+            className="flex items-center gap-2 px-3.5 py-1.5 text-sm font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-800 transition-all duration-200 shadow-sm cursor-pointer"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Start New Chat
+          </button>
+
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all duration-200 shadow-sm"
+          >
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Main split-pane content */}
@@ -445,6 +612,7 @@ export default function ChatsTab({
           )}
         </div>
       </div>
+      {renderInitiateModal()}
     </div>
   );
 }

@@ -206,3 +206,9 @@ class PaginatedDocument(BaseModel):
     limit: int
 
 
+class InitiateChatRequest(BaseModel):
+    phone_number: str
+    customer_name: Optional[str] = "Customer"
+    message: str
+
+

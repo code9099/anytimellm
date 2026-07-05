@@ -47,9 +47,11 @@ export default function Footer() {
                 ANYTIMELLM
               </span>
             </Link>
-            <p className="font-body text-[13px] text-slate-500 leading-relaxed max-w-xs font-medium">
-              Reply to customer questions, check stock, and take orders automatically on WhatsApp.
-            </p>
+            <div className="font-body text-[13px] text-slate-500 leading-relaxed max-w-xs font-medium space-y-1">
+              <div>Email: <a href="mailto:anytimellm10@gmail.com" className="hover:text-slate-900 font-semibold transition-colors">anytimellm10@gmail.com</a></div>
+              <div>Phone: <a href="tel:+919315549695" className="hover:text-slate-900 font-semibold transition-colors">+91 93155 49695</a></div>
+              <div className="pt-0.5 text-xs text-slate-400 leading-snug">Address: D-11/322, Sector-7, Rohini, Delhi - 110085</div>
+            </div>
             <div className="flex items-center gap-1.5 mt-4">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="font-body text-[10px] font-bold text-emerald-600 tracking-wider uppercase">

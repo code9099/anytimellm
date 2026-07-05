@@ -649,8 +649,9 @@ export default function Dashboard() {
             onPageChange={fetchOrdersPage}
           />
         )}
-        {tab === "chats" && (
+        {tab === "chats" && activeBusiness && (
           <ChatsTab
+            businessId={activeBusiness.id}
             chats={chats}
             loading={loadingChats}
             onRefresh={handleRefreshChats}

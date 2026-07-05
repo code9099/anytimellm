@@ -339,6 +339,19 @@ export const api = {
     return res.json();
   },
 
+  async initiateChat(businessId: string, phoneNumber: string, message: string, customerName?: string): Promise<Conversation> {
+    const res = await fetch(`${BACKEND_URL}/api/businesses/${businessId}/chats/initiate`, {
+      method: "POST",
+      headers: getHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ phone_number: phoneNumber, message, customer_name: customerName }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Failed to initiate chat.");
+    }
+    return res.json();
+  },
+
   async updateChatSettings(businessId: string, conversationId: string, settings: { is_ai_paused?: boolean; status?: string; }): Promise<Conversation> {
     const res = await fetch(`${BACKEND_URL}/api/businesses/${businessId}/chats/${conversationId}`, {
       method: "PATCH",

@@ -11,7 +11,7 @@ from datetime import datetime
 from sqlalchemy import func
 from app.database import get_db
 from app.models import Business, Catalog, Order, Conversation, Message, Document
-from app.schemas import BusinessCreate, BusinessOut, CatalogCreate, CatalogOut, OrderOut, ConversationOut, MessageOut, MessageCreate, PaginatedCatalog, PaginatedOrder, PaginatedConversation
+from app.schemas import BusinessCreate, BusinessOut, CatalogCreate, CatalogOut, OrderOut, ConversationOut, MessageOut, MessageCreate, PaginatedCatalog, PaginatedOrder, PaginatedConversation, InitiateChatRequest
 from app.services.security import get_current_user
 from app.config import settings
 
@@ -697,3 +697,115 @@ def update_conversation_status(
         db.rollback()
         logger.error(f"Error updating conversation settings: {e}")
         raise HTTPException(status_code=500, detail="Could not update conversation settings.")
+
+
+@router.post("/{business_id}/chats/initiate", response_model=ConversationOut)
+async def initiate_new_chat(
+    business_id: UUID,
+    payload: InitiateChatRequest,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Manually initiate a new conversation with a customer by sending the first message."""
+    if current_user.business_id != business_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this business.")
+        
+    biz = db.query(Business).filter(Business.id == business_id).first()
+    if not biz:
+        raise HTTPException(status_code=404, detail="Business not found.")
+        
+    # Standardize phone number
+    clean_phone = payload.phone_number.strip().replace(" ", "").replace("-", "").replace("+", "")
+    if not clean_phone:
+        raise HTTPException(status_code=400, detail="Valid phone number is required.")
+        
+    from app.models import Customer
+    # Find or create customer
+    customer = db.query(Customer).filter(
+        Customer.business_id == business_id,
+        Customer.phone_number == clean_phone
+    ).first()
+    
+    if not customer:
+        customer = Customer(
+            business_id=business_id,
+            name=payload.customer_name or "Customer",
+            phone_number=clean_phone
+        )
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
+        
+    # Find or create conversation
+    conv = db.query(Conversation).filter(
+        Conversation.business_id == business_id,
+        Conversation.customer_id == customer.id,
+        Conversation.channel == "whatsapp"
+    ).first()
+    
+    if not conv:
+        conv = Conversation(
+            business_id=business_id,
+            customer_id=customer.id,
+            channel="whatsapp",
+            status="active",
+            is_ai_paused=True,
+            ai_pause_reason="human_initiated"
+        )
+        db.add(conv)
+        db.commit()
+        db.refresh(conv)
+        
+    # Add message
+    new_msg = Message(
+        conversation_id=conv.id,
+        sender="agent",
+        content=payload.message
+    )
+    db.add(new_msg)
+    db.commit()
+    
+    # Send actual WhatsApp message
+    from app.services.whatsapp import send_whatsapp_message
+    wa_phone = f"whatsapp:+{clean_phone}" if not clean_phone.startswith("whatsapp:") else clean_phone
+    await send_whatsapp_message(business=biz, to_phone=wa_phone, text=payload.message)
+    
+    # Notify dashboard listeners via PubSub
+    from app.services.pubsub import chat_pubsub
+    chat_pubsub.publish(str(business_id), "refresh")
+    
+    # Query conversation with loaded relationships
+    conv_out = (
+        db.query(Conversation)
+        .filter(Conversation.id == conv.id)
+        .options(joinedload(Conversation.customer), selectinload(Conversation.messages))
+        .first()
+    )
+    
+    msgs = sorted(conv_out.messages, key=lambda m: m.created_at)
+    mapped_msgs = [
+        MessageOut(
+            id=m.id,
+            conversation_id=m.conversation_id,
+            sender=m.sender,
+            content=m.content,
+            created_at=m.created_at
+        ) for m in msgs
+    ]
+    
+    return ConversationOut(
+        id=conv_out.id,
+        business_id=conv_out.business_id,
+        customer_id=conv_out.customer_id,
+        channel=conv_out.channel,
+        status=conv_out.status,
+        created_at=conv_out.created_at,
+        customer_name=conv_out.customer.name if conv_out.customer else "WhatsApp User",
+        customer_phone=conv_out.customer.phone_number if conv_out.customer else "Unknown Phone",
+        last_message_content=payload.message,
+        messages=mapped_msgs,
+        is_ai_paused=conv_out.is_ai_paused,
+        ai_pause_reason=conv_out.ai_pause_reason,
+        ai_paused_at=conv_out.ai_paused_at
+    )
+
